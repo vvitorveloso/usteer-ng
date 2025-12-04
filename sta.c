@@ -188,7 +188,21 @@ usteer_sta_info_update(struct sta_info *si, int signal, bool avg)
 		signal = NO_SIGNAL;
 
 	if (signal != NO_SIGNAL) {
-		si->signal = signal;
+		/* Initialize history if empty (first reading) */
+		if (si->signal == 0 || si->signal == NO_SIGNAL) {
+			for(int i=0; i<4; i++) si->signal_history[i] = signal;
+			si->signal_history_idx = 0;
+			si->signal = signal;
+		} else {
+			/* Moving Average Logic */
+			si->signal_history[si->signal_history_idx] = signal;
+			si->signal_history_idx = (si->signal_history_idx + 1) % 4;
+			
+			long sum = 0;
+			for(int i=0; i<4; i++) sum += si->signal_history[i];
+			si->signal = sum / 4;
+		}
+		
 		usteer_band_steering_sta_update(si);
 	}
 

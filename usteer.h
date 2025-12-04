@@ -252,6 +252,8 @@ struct sta_info {
 	uint64_t last_connected;
 
 	int signal;
+	int signal_history[4];
+	int signal_history_idx;
 
 	uint8_t rrm;
 	bool bss_transition;
