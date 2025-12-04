@@ -1,173 +1,184 @@
 config usteer
-	# OpenWRT guide: https://openwrt.org/docs/guide-user/network/wifi/usteer
+	# =========================================================================
+	# USTEER-NG CONFIGURATION GUIDE
+	# =========================================================================
+	# This configuration file controls how Access Points (APs) coordinate roaming.
+	# The goal is "Seamless Roaming" (Zero Downtime).
+	#
+	# PRINCIPLE: "Guide, don't Kick."
+	# We want clients to move voluntarily BEFORE they lose connection.
+	# Kicking is a last resort measure.
+	
+	# =========================================================================
+	# CORE NETWORK SETTINGS (REQUIRED)
+	# =========================================================================
 
-	# The network interface for inter-AP communication
-	option 'network' 'lan'
+	# The network interface for inter-AP communication.
+	# CRITICAL: This interface must be the same on all APs (usually 'lan').
+	# If incorrect, APs cannot exchange information and roaming will fail.
+	option network 'lan'
 
-	# Log messages to syslog (0/1)
-	option 'syslog' '1'
-
-	# Disable network communication (0/1)
+	# Disable network communication (0/1).
+	# Set '1' ONLY for debugging a single isolated AP.
+	# Default: 0 (Normal multi-AP operation)
 	option local_mode '0'
 
-	# Use IPv6 for remote exchange
-	option 'ipv6' '0'
+	# Use IPv6 for remote exchange.
+	# Default: 0 (IPv4 is standard and sufficient for most LANs)
+	option ipv6 '0'
 
-	# Minimum level of logged messages
+	# Log messages to syslog (0/1).
+	# HIGHLY RECOMMENDED: Keep '1' to debug why clients are roaming (or not).
+	option syslog '1'
+
+	# Debug Level
 	# 0 = fatal
 	# 1 = info
-	# 2 = verbose
+	# 2 = verbose (Recommended for normal use)
 	# 3 = some debug messages
 	# 4 = network packet information
-	# 5 = all debug messages
-	option 'debug_level' '2'
+	# 5 = all debug messages (Very noisy, use only for deep troubleshooting)
+	option debug_level '2'
 
-	# Maximum number of neighbor reports set for a node
-	#option max_neighbor_reports 8
+	# =========================================================================
+	# ROAMING ASSISTANCE (THE "POLITE" WAY)
+	# These settings encourage clients to move voluntarily via 802.11v/k.
+	# This is the key to Zero Downtime.
+	# =========================================================================
 
-	# Maximum amount of time (ms) a station may be blocked due to policy decisions
-	#option sta_block_timeout 30000
+	# -------------------------------------------------------------------------
+	# PHASE 1: SCAN SUGGESTION (Early Warning)
+	# -------------------------------------------------------------------------
+	# Signal level (dBm) where usteer suggests the client to "start looking around".
+	# Value: -68 dBm (Standard "Good" signal boundary).
+	#
+	# Trade-offs:
+	# - Too High (e.g., -55): Wastes battery; client scans when signal is still great.
+	# - Too Low (e.g., -80): Too late; client might drop packets before finding a new AP.
+	option roam_scan_snr '-68'
 
-	# Maximum amount of time (ms) a local unconnected station is tracked
-	#option local_sta_timeout 120000
+	# How many times to try triggering a scan?
+	option roam_scan_tries '3'
 
-	# Maximum amount of time (ms) a measurement report is stored
-	#option measurement_report_timeout 120000
+	# Minimum time (ms) between client roaming scan trigger attempts.
+	option roam_scan_interval '10000'
 
-	# Local station information update interval (ms)
-	#option local_sta_update 1000
+	# Timeout (ms) to retry scanning if roam_scan_tries is exceeded.
+	# If 0, the client is kicked instead (NOT RECOMMENDED for zero downtime).
+	option roam_scan_timeout '0'
 
-	# Maximum number of consecutive times a station may be blocked by policy
-	#option max_retry_band 5
+	# -------------------------------------------------------------------------
+	# PHASE 2: ROAM TRIGGER (Strong Suggestion)
+	# -------------------------------------------------------------------------
+	# Signal level (dBm) where usteer actively requests the client to roam.
+	# Value: -75 dBm (Signal is getting weak, move NOW).
+	# 
+	# MUST be lower than roam_scan_snr.
+	# Ideally provides enough buffer before min_snr kicks in.
+	option roam_trigger_snr '-75'
 
-	# Maximum idle time of a station entry (ms) to be considered for policy decisions
-	#option seen_policy_timeout 30000
+	# Minimum time (ms) between roam attempts.
+	option roam_trigger_interval '60000'
 
-	# Minimum number of stations delta between APs before load balancing policy is active
-	#option load_balancing_threshold 0
+	# Timeout (ms) for client roam requests. 
+	# If the client doesn't roam within this time, usteer will kick it.
+	# Default: 10000 (10s). Set to higher if clients are slow to react.
+	option roam_kick_delay '10000'
 
-	# Minimum number of stations delta between bands before band steering policy is active
-	#option band_steering_threshold 5
+	# =========================================================================
+	# FORCED ACTIONS (THE "KICK" WAY)
+	# These settings protect the network performance by removing bad clients.
+	# =========================================================================
 
-	# Interval (ms) between sending state updates to other APs
-	#option remote_update_interval 1000
+	# -------------------------------------------------------------------------
+	# PHASE 3: MINIMUM SIGNAL THRESHOLD (The Cliff)
+	# -------------------------------------------------------------------------
+	# Minimum SNR/Signal (dBm) to stay connected.
+	# Value: -85 dBm.
+	#
+	# CRITICAL WARNING: If signal drops below this, the client is DISCONNECTED FORCEFULLY.
+	# This causes downtime if the client hasn't roamed yet.
+	#
+	# Trade-offs:
+	# - Too High (e.g., -70): Causes "coverage holes". Users disconnect in corners of the house.
+	# - Too Low (e.g., -95): Sticky clients stay connected with unusable speed, slowing down the AP.
+	option min_snr '-85'
 
-	# Number of remote update intervals after which a remote-node is deleted
-	#option remote_node_timeout 10
+	# Grace period (ms) before kicking a low-signal client.
+	# Gives the client 5 seconds to roam voluntarily after crossing the -85 threshold.
+	option min_snr_kick_delay '5000'
 
-	# Allow rejecting assoc requests for steering purposes (0/1)
-	#option assoc_steering 0
+	# Minimum Signal (dBm) to ALLOW a NEW connection.
+	# Must be slightly higher than min_snr to prevent "Connect -> Kick -> Connect" loops.
+	option min_connect_snr '-80'
 
-	# Allow ignoring probe requests for steering purposes (0/1)
-	#option probe_steering 0
+	# -------------------------------------------------------------------------
+	# STABILITY SETTINGS (Anti-Ping-Pong)
+	# -------------------------------------------------------------------------
+	# Signal difference (dBm) required to switch to a new AP.
+	# The target AP must be X dB better than the current AP to justify a switch.
+	# Value: 5 dB.
+	#
+	# Trade-offs:
+	# - Too Low (0-2): Clients bounce back and forth between APs (Ping-Pong effect).
+	# - Too High (10+): Clients stick to the old AP even when a much better one is close.
+	option signal_diff_threshold '5'
 
-	# Minimum signal-to-noise ratio or signal level (dBm) to allow connections
-	#option min_connect_snr 0
+	# Timeout (s) a station is requested to avoid reassociation after BSS-transition.
+	# Prevents the client from immediately trying to reconnect to the old AP.
+	option reassociation_delay '30'
 
-	# Minimum signal-to-noise ratio or signal level (dBm) to remain connected
-	#option min_snr 0
+	# =========================================================================
+	# OTHER TUNABLES
+	# =========================================================================
 
-	# Timeout after which a station with snr < min_snr will be kicked
-	#option min_snr_kick_delay 5000
+	# Aggressiveness of roaming (0-3).
+	# 0 = No active roaming
+	# 1 = Passive roaming (Hints)
+	# 2 = Roaming with Disassociation Imminent
+	# 3 = Roaming with Disassociation Imminent + Timer
+	option aggressiveness '2'
 
-	# Timeout (ms) for which a client will not be steered after rejecting a BSS-transition-request
-	#option steer_reject_timeout 60000
+	# List of MACs to set specific aggressiveness (Format: MAC,level)
+	# list aggressiveness_mac_list 'ff:ff:ff:ff:ff:ff,2'
 
-	# Timeout (s "1024ms") a station is requested to avoid reassociation after BSS-transition
-	#option reassociation_delay 30
-	
-	# Aggressiveness of roaming to push a station to another node
-	# 0 = no active roaming / 1 = passive roaming / 2 = roaming with disassociation imminent
-	# 3 = roaming with disassociation imminent and timer
-	# 4 = roaming with disassociation imminent, timer and forced disassociation
-	#option aggressiveness 3
+	# Initial delay (ms) before responding to probe requests.
+	# Allows other APs (maybe closer ones) to respond first.
+	option initial_connect_delay '0'
 
-	# List of MACs (lower case) to set aggressiveness per station (ff:ff:ff:ff:ff,2)
-	#list aggressiveness_mac_list ''
+	# Band Steering (Push clients to 5GHz/6GHz)
+	# Interval (ms) to attempt steering. 0 to disable.
+	option band_steering_interval '120000'
 
-	# Timeout (in ms) after which a association following a disassociation is not seen
-	# as a roam
-	#option roam_process_timeout 5000
+	# Min SNR on 5GHz to allow steering.
+	# Don't steer if the 5GHz signal is weak (it penetrates walls poorly).
+	option band_steering_min_snr '-60'
 
-	# Minimum signal-to-noise ratio or signal level (dBm) before attempting to trigger
-	# client scans for roaming
-	#option roam_scan_snr 0
+	# Signal buffer (dB) to prevent band ping-pong.
+	option band_steering_signal_threshold '5'
 
-	# Maximum number of client roaming scan trigger attempts
-	#option roam_scan_tries 3
+	# 802.11k Link Measurement Interval (ms)
+	# Checks bi-directional link quality. 0 to disable.
+	option link_measurement_interval '30000'
 
-	# Retry scanning when roam_scan_tries is exceeded after this timeout (in ms)
-	# In case this option is set to 0, the client is kicked instead
-	#option roam_scan_timeout 0
-
-	# Minimum time (ms) between client roaming scan trigger attempts
-	#option roam_scan_interval 10000
-
-	# Minimum signal-to-noise ratio or signal level (dBm) before attempting to trigger
-	# forced client roaming
-	#option roam_trigger_snr 0
-
-	# Minimum time (ms) between client roaming trigger attempts
-	#option roam_trigger_interval 60000
-
-	# Timeout (ms) for client roam requests. usteer will kick the client after this times out.
-	#option roam_kick_delay 10000
-
-	# Minimum signal strength difference until AP steering policy is active
-	#option signal_diff_threshold 0
-
-	# Initial delay (ms) before responding to probe requests (to allow other APs to see packets as well)
-	#option initial_connect_delay 0
-
-	# Enable kicking client on excessive channel load (0/1)
-	#option load_kick_enabled 0
-
-	# Minimum channel load (%) before kicking clients
-	#option load_kick_threshold 75
-
-	# Minimum amount of time (ms) that channel load is above threshold before starting to kick clients
-	#option load_kick_delay 10000
-
-	# Minimum number of connected clients before kicking based on channel load
-	#option load_kick_min_clients 10
-
-	# Reason code on client kick based on channel load (default: WLAN_REASON_DISASSOC_AP_BUSY)
-	#option load_kick_reason_code 5
-
-	# Attempting to steer clients to a higher frequency-band every n ms.
-	# A value of 0 disabled band-steering.
-	#option band_steering_interval 120000
-
-	# Minimal SNR or absolute signal a device has to maintain over band_steering_interval to be
-	# steered to a higher frequency band
-	#option band_steering_min_snr -60
-
-	# Difference that the signal must be better compared to signal was on connection to node.
-	# Avoids conflicts between roaming and band-steering policies.
-	# option band_steering_signal_threshold 5
-
-	# Interval (ms) the device is sent a link-measurement request to help assess
-	# the bi-directional link quality. Setting the interval to 0 disables link-measurements.
-	#option link_measurement_interval 30000
-
-	# Script to run after bringing up a node
-	#option node_up_script ''
+	# Load Balancing (Kick clients if AP is too busy)
+	# Disabled (0) by default for home use. Enable for high-density venues.
+	option load_kick_enabled '0'
+	option load_kick_threshold '75'
+	option load_kick_delay '10000'
+	option load_kick_min_clients '10'
+	option load_kick_reason_code '5'
 
 	# Message types to include in log
-	# Available types:
-	# - probe_req_accept
-	# - probe_req_deny
-	# - auth_req_accept
-	# - auth_req_deny
-	# - assoc_req_accept
-	# - assoc_req_deny
-	# - load_kick_trigger
-	# - load_kick_reset
-	# - load_kick_min_clients
-	# - load_kick_no_client
-	# - load_kick_client
-	# - signal_kick
-	#list event_log_types ''
+	# Useful for debugging connection flows.
+	# list event_log_types 'probe_req_accept'
+	# list event_log_types 'probe_req_deny'
+	# list event_log_types 'auth_req_accept'
+	# list event_log_types 'auth_req_deny'
+	# list event_log_types 'assoc_req_accept'
+	# list event_log_types 'assoc_req_deny'
+	# list event_log_types 'load_kick_trigger'
+	# list event_log_types 'signal_kick'
 
-	# List of SSIDs to enable steering on
-	#list ssid_list ''
+	# List of SSIDs to enable steering on (Empty = All SSIDs)
+	# list ssid_list ''
