@@ -8,6 +8,9 @@ config usteer
 	# PRINCIPLE: "Guide, don't Kick."
 	# We want clients to move voluntarily BEFORE they lose connection.
 	# Kicking is a last resort measure.
+	#
+	# All signal values are in dBm (negative numbers).
+	# Closer to 0 is better (e.g. -50 is better than -80).
 	
 	# =========================================================================
 	# CORE NETWORK SETTINGS (REQUIRED)
@@ -104,6 +107,29 @@ config usteer
 	# - Too Low (e.g., -95): Sticky clients stay connected with unusable speed, slowing down the AP.
 	option min_snr '-85'
 
+	# -------------------------------------------------------------------------
+	# BAND SPECIFIC THRESHOLDS (Overrides min_snr)
+	# -------------------------------------------------------------------------
+	# You can fine-tune the "kick" threshold for each frequency band.
+	# 5GHz/6GHz usually have higher throughput but less range than 2.4GHz.
+	# Setting these higher than min_snr forces clients to fallback to 2.4GHz sooner.
+	
+	# 2.4 GHz Minimum SNR
+	# Usually the "safety net" band. Keep this low to allow long-range connection.
+	# Default: same as global min_snr if commented out.
+	# option min_snr_2g '-85'
+
+	# 5 GHz Minimum SNR
+	# 5GHz degrades faster. We might want to kick clients sooner to push them to 2.4GHz
+	# or another closer 5GHz AP.
+	# Suggested: -80 to -82 (Slightly stricter than global).
+	# option min_snr_5g '-82'
+
+	# 6 GHz Minimum SNR
+	# Very short range, high speed. 
+	# Suggested: -80 (Keep it clean for high performance).
+	# option min_snr_6g '-80'
+
 	# Grace period (ms) before kicking a low-signal client.
 	# Gives the client 5 seconds to roam voluntarily after crossing the -85 threshold.
 	option min_snr_kick_delay '5000'
@@ -135,11 +161,12 @@ config usteer
 	# Aggressiveness of roaming (0-3).
 	# 0 = No active roaming
 	# 1 = Passive roaming (Hints)
-	# 2 = Roaming with Disassociation Imminent
+	# 2 = Roaming with Disassociation Imminent (Recommended)
 	# 3 = Roaming with Disassociation Imminent + Timer
 	option aggressiveness '2'
 
 	# List of MACs to set specific aggressiveness (Format: MAC,level)
+	# Useful for stubborn "sticky clients" (e.g. old Printers, IoT devices).
 	# list aggressiveness_mac_list 'ff:ff:ff:ff:ff:ff,2'
 
 	# Initial delay (ms) before responding to probe requests.
