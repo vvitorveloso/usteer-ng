@@ -211,6 +211,8 @@ struct usteer_config {
 	const char *node_up_script;
 	uint32_t event_log_mask;
 
+	bool disable_beacon_requests;
+
 	struct blob_attr *ssid_list;
 };
 

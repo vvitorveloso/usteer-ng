@@ -356,12 +356,20 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 		}
 
 		/* Send beacon-request to client */
-		usteer_ubus_trigger_client_scan(si);
-		usteer_roam_sm_start_scan(si, &ev);
+		if (!config.disable_beacon_requests) {
+			usteer_ubus_trigger_client_scan(si);
+			usteer_roam_sm_start_scan(si, &ev);
+		} else {
+			/* Blind Roaming: Skip scan, go directly to decision */
+			usteer_roam_set_state(si, ROAM_TRIGGER_SCAN_DONE, &ev);
+		}
 		break;
 
 	case ROAM_TRIGGER_IDLE:
-		usteer_roam_sm_start_scan(si, &ev);
+		if (!config.disable_beacon_requests)
+			usteer_roam_sm_start_scan(si, &ev);
+		else
+			usteer_roam_set_state(si, ROAM_TRIGGER_SCAN_DONE, &ev);
 		break;
 
 	case ROAM_TRIGGER_SCAN_DONE:
@@ -373,13 +381,23 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 		}
 
 		candidate = usteer_roam_sm_found_better_node(si, &ev, ROAM_TRIGGER_SCAN_DONE);
+		
+		/* Handle Blind Roaming if no candidate found via reports */
+		struct usteer_node *target_node = NULL;
+		if (candidate) {
+			target_node = candidate->node;
+		} else if (config.disable_beacon_requests) {
+			/* Blind mode: Pick the first neighbor */
+			target_node = usteer_node_get_next_neighbor(si->node, NULL);
+		}
+
 		/* Kick back in case no better node is found */
-		if (!candidate) {
+		if (!target_node) {
 			usteer_roam_set_state(si, ROAM_TRIGGER_IDLE, &ev);
 			break;
 		}
 
-		if (!candidate->node->rrm_nr)
+		if (!target_node->rrm_nr)
 			MSG(FATAL, "Candiates node rrm nr not returned from hostapd. Neighbor list empty!");
 
 		if (!si->roam_transition_start)
@@ -393,14 +411,14 @@ usteer_roam_trigger_sm(struct usteer_local_node *ln, struct sta_info *si)
 				disassoc_timer = (si->kick_time - current_time) / usteer_local_node_get_beacon_interval(ln);
 			else
 				disassoc_timer = 0;
-			usteer_ubus_bss_transition_request(si, 1, true, disassoc_timer, true, validity_period, candidate->node);
+			usteer_ubus_bss_transition_request(si, 1, true, disassoc_timer, true, validity_period, target_node);
 			/* Countdown end */
 			if (disassoc_timer < validity_period) {
 				si->roam_transition_start = 0;
 				usteer_roam_set_state(si, ROAM_TRIGGER_IDLE, &ev);
 			}
 		} else {
-			usteer_ubus_bss_transition_request(si, 1, false, 0, true, validity_period, candidate->node);
+			usteer_ubus_bss_transition_request(si, 1, false, 0, true, validity_period, target_node);
 			usteer_roam_set_state(si, ROAM_TRIGGER_IDLE, &ev);
 		}
 		break;

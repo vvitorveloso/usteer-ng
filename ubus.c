@@ -150,6 +150,7 @@ struct cfg_item {
 	_cfg(U32, debug_level), \
 	_cfg(BOOL, ipv6), \
 	_cfg(BOOL, local_mode), \
+	_cfg(BOOL, disable_beacon_requests), \
 	_cfg(U32, sta_block_timeout), \
 	_cfg(U32, local_sta_timeout), \
 	_cfg(U32, local_sta_update), \
