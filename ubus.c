@@ -168,6 +168,8 @@ struct cfg_item {
 	_cfg(U32, aggressive_disassoc_timer), \
 	_cfg(I32, min_connect_snr), \
 	_cfg(I32, min_snr), \
+	_cfg(I32, min_snr_2g), \
+	_cfg(I32, min_snr_5g), \
 	_cfg(U32, min_snr_kick_delay), \
 	_cfg(U32, steer_reject_timeout), \
 	_cfg(U32, roam_process_timeout), \

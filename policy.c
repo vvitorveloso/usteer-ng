@@ -517,11 +517,17 @@ usteer_local_node_snr_kick(struct usteer_local_node *ln)
 	};
 	struct sta_info *si;
 	int min_signal;
+	int32_t threshold_snr = config.min_snr;
 
-	if (!config.min_snr)
+	if (ln->node.freq > 4000 && config.min_snr_5g)
+		threshold_snr = config.min_snr_5g;
+	else if (ln->node.freq < 4000 && config.min_snr_2g)
+		threshold_snr = config.min_snr_2g;
+
+	if (!threshold_snr)
 		return;
 
-	min_signal = usteer_snr_to_signal(&ln->node, config.min_snr);
+	min_signal = usteer_snr_to_signal(&ln->node, threshold_snr);
 	ev.threshold.ref = min_signal;
 
 	list_for_each_entry(si, &ln->node.sta_info, node_list) {

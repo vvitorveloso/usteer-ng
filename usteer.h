@@ -176,6 +176,8 @@ struct usteer_config {
 	uint32_t reassociation_delay;
 
 	int32_t min_snr;
+	int32_t min_snr_2g;
+	int32_t min_snr_5g;
 	uint32_t min_snr_kick_delay;
 	int32_t min_connect_snr;
 	uint32_t signal_diff_threshold;
